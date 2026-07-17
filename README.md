@@ -87,6 +87,7 @@ If you find this code useful, consider citing it along with the papers:
 }
 ```
 
+```bibtex
 @misc{singh2023revisitingenergybasedmodels,
       title={Revisiting Energy Based Models as Policies: Ranking Noise Contrastive Estimation and Interpolating Energy Models}, 
       author={Sumeet Singh and Stephen Tu and Vikas Sindhwani},
@@ -96,4 +97,4 @@ If you find this code useful, consider citing it along with the papers:
       primaryClass={cs.RO},
       url={https://arxiv.org/abs/2309.05803}, 
 }
-
+```
