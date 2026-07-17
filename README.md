@@ -2,6 +2,13 @@
 
 A PyTorch implementation for energy-based policies. Implements [Ranking Noise Contrastive Estimation](https://arxiv.org/abs/2309.05803) and [Implicit Behavior Cloning](https://arxiv.org/abs/2109.00137).
 
+Energy-based policies are learned from an imitation learning setting and compared to an MSE loss baseline. 
+
+Notation:
+- MSE: Mean Square Error
+- IBC: Implicit Behavior Cloning / InfoNCE Loss
+- RNCE: Ranking Noise Contrastive Estimation
+
 ## Getting Started
 
 Clone the environment and change directories. The following uses cloning via ssh:
