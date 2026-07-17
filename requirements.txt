@@ -1,0 +1,10 @@
+numpy
+tqdm
+pytest
+ipykernel
+pygame
+matplotlib  
+wandb
+tensorboard
+scipy
+torch>=2.7 
