@@ -7,8 +7,8 @@ A PyTorch implementation for energy-based policies. Implements [Ranking Noise Co
 Clone the environment and change directories. The following uses cloning via ssh:
 
 ```bash
-git clone git@github.com:mht3/pokemon_tcg_agent.git
-cd pokemon_tcg_agent
+git clone git@github.com:mht3/ebp.git
+cd ebp
 ```
 
 ### Environment Setup
