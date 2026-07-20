@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ebp"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy", "tqdm", "pygame", "matplotlib",
+    "wandb", "tensorboard", "scipy", "torch>=2.7", "torchvision",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ipykernel"]
+
+[tool.setuptools.packages.find]
+include = ["ebp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

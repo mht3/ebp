@@ -53,11 +53,17 @@ pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorc
 </details>
 
 
-Install the remaining required dependencies.
+Install the package and its dependencies in editable mode.
+
 ```sh
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
+Run the tests to make sure the codebase is setup properly. If all tests pass, you're good to go!
+
+```sh
+pytest tests/
+```
 
 ## Results
 
@@ -68,9 +74,24 @@ pip install -r requirements.txt
 | 10 examples ||| |
 | 30 examples || ||
 
+## Training
+
+To reproduce the results you see, simply run the  shell scripts. This will train EBMs with MSE, IBC and R-NCE losses for the coordinate regression task and use Langevin MCMC sampling at inference time.
+
+```sh
+bash scripts/generate_coordinate_regression_dataset.sh
+```
+
+
+```sh
+bash scripts/train_coordinate_regression.sh
+```
+
+The dataset will be saved under `datasets/`, and three separate torch models will be saved in `models/` after training. Results will be printed after running the shell script and images will be saved in `assets/`.
+
 ## Citation
 
-If you find this code useful, consider citing it along with the papers:
+If you find this code useful, consider citing:
 
 ```bibtex
 @software{taylor2026ebp,
@@ -83,6 +104,11 @@ If you find this code useful, consider citing it along with the papers:
 }
 ```
 
+Thanks to the following works for help with this codebase!
+
+
+For IBC training details and the coordinate regression task:
+
 ```bibtex
 @misc{florence2021implicit,
     title = {Implicit Behavioral Cloning},
@@ -94,6 +120,8 @@ If you find this code useful, consider citing it along with the papers:
 }
 ```
 
+For R-NCE training details and comparisons to IBC:
+
 ```bibtex
 @misc{singh2023revisitingenergybasedmodels,
       title={Revisiting Energy Based Models as Policies: Ranking Noise Contrastive Estimation and Interpolating Energy Models}, 
@@ -103,5 +131,18 @@ If you find this code useful, consider citing it along with the papers:
       archivePrefix={arXiv},
       primaryClass={cs.RO},
       url={https://arxiv.org/abs/2309.05803}, 
+}
+```
+
+For the PyTorch implementation of IBC along with the coordinate regression PyTorch dataloader:
+
+```bibtex
+@software{zakka2021ibc,
+    author = {Zakka, Kevin},
+    month = {10},
+    title = {{A PyTorch Implementation of Implicit Behavioral Cloning}},
+    url = {https://github.com/kevinzakka/ibc},
+    version = {0.0.1},
+    year = {2021}
 }
 ```
