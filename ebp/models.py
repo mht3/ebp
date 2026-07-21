@@ -5,8 +5,9 @@ Base class for MLP, CNN
 import dataclasses
 import enum
 from functools import partial
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Protocol, Sequence
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -80,7 +81,7 @@ class ResidualBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.activation(x)
         out = self.conv1(out)
-        out = self.activation(x)
+        out = self.activation(out)
         out = self.conv2(out)
         return out + x
 
@@ -179,18 +180,34 @@ class EBMConvMLP(nn.Module):
         return out.view(B, N)
 
 
-if __name__ == "__main__":
-    config = ConvMLPConfig(
-        cnn_config=CNNConfig(5),
-        mlp_config=MLPConfig(32, 128, 2, 2),
-        spatial_reduction=SpatialReduction.AVERAGE_POOL,
-        coord_conv=True,
-    )
+class ProposalNetwork(Protocol):
+    """A learnable negative sampler p_xi(y | x)."""
 
-    net = ConvMLP(config)
-    print(net)
+    def sample(self, x: torch.Tensor, num_samples: int) -> torch.Tensor:
+        """Draw `num_samples` proposal samples per row of `x`.
+        Returns a tensor of shape (x.size(0), num_samples, target_dim).
+        """
 
-    x = torch.randn(2, 3, 96, 96)
-    with torch.no_grad():
-        out = net(x)
-    print(out.shape)
+
+@dataclasses.dataclass
+class ProposalSampler:
+    """Draws R-NCE training negatives straight from the proposal p_xi(y | x).
+    """
+
+    device: torch.device
+    bounds: np.ndarray
+    train_samples: int
+    proposal: Optional[ProposalNetwork] = None
+
+    def _sample_uniform(self, x: torch.Tensor, num_samples: int) -> torch.Tensor:
+        bounds = torch.as_tensor(self.bounds, dtype=torch.float32)
+        size = (x.size(0) * num_samples, bounds.shape[1])
+        samples = np.random.uniform(bounds[0, :], bounds[1, :], size=size)
+        samples = torch.as_tensor(samples, dtype=torch.float32, device=x.device)
+        return samples.reshape(x.size(0), num_samples, -1)
+
+    def sample(self, x: torch.Tensor, ebm: nn.Module) -> torch.Tensor:
+        del ebm  # Negatives must not depend on theta
+        if self.proposal is not None:
+            return self.proposal.sample(x, self.train_samples)
+        return self._sample_uniform(x, self.train_samples)
