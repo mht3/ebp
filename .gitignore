@@ -203,3 +203,4 @@ datasets/*
 models/*
 *.pt
 assets/*
+wandb/*

@@ -14,7 +14,7 @@ for n in 10 30; do
             --method "$method" \
             --train_dataset "$train" \
             --test_dataset "$test" \
-            --eval_every 50
+            --eval_every 10
 
         python plot_coordinate_regression.py \
             --method "$method" \

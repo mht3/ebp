@@ -93,8 +93,8 @@ if __name__ == "__main__":
     parser.add_argument("--task", default="coordinate_regression")
     parser.add_argument("--train_dataset", required=True, help="Filename in datasets/.")
     parser.add_argument("--test_dataset", default=None, help="Filename in datasets/.")
-    parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--eval_every", type=int, default=10)
     parser.add_argument(
         "--stochastic_optimizer",
