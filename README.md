@@ -70,9 +70,9 @@ pytest tests/
 ### 2D Coordinate Regression
 
 |             | MSE | IBC | R-NCE |
-|-------------|-----------------|-----------------|
+|-------------|-----------------|-----------------|-----------------| 
 | 10 examples |<img src="assets/mse_coordinate_regression_n_10_seed_0.png" width="300" height="200"/>|<img src="assets/ibc_coordinate_regression_n_10_seed_0.png"width="300" height="200"/>| |
-| 30 examples |<img src="assets/mse_coordinate_regression_n_30_seed_0.png" width="300" height="200"/>|<img src="assets/ibc_coordinate_regression_n_30_seed_0.png"width="300" height="200"/>||
+| 30 examples |<img src="assets/mse_coordinate_regression_n_30_seed_0.png" width="300" height="200"/>|<img src="assets/ibc_coordinate_regression_n_30_seed_0.png"width="300" height="200"/>| |
 
 ## Training
 
