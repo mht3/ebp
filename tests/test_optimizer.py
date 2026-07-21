@@ -32,7 +32,7 @@ def test_derivative_free_optimizer():
     bounds = dataset.get_target_bounds()
 
     config = DerivativeFreeConfig(bounds=bounds, train_samples=256)
-    so = DerivativeFreeOptimizer.initialize(config, "gpu")
+    so = DerivativeFreeOptimizer.initialize(config, "cuda")
 
     x = torch.zeros(64, 1)
     negatives = so.sample(x, nn.Identity())
@@ -45,7 +45,7 @@ def test_langevin_mcmc_optimizer_uniform_proposal():
     bounds = dataset.get_target_bounds()
 
     config = LangevinDynamicsConfig(bounds=bounds, iters=2, train_samples=32)
-    so = LangevinOptimizer.initialize(config, "gpu")
+    so = LangevinOptimizer.initialize(config, "cuda")
 
     x = torch.zeros(4, 1)
     ebm = _FakeEBM()
@@ -64,7 +64,7 @@ def test_langevin_mcmc_optimizer_learned_proposal():
     bounds = dataset.get_target_bounds()
 
     config = LangevinDynamicsConfig(bounds=bounds, iters=2, train_samples=32)
-    so = LangevinOptimizer.initialize(config, "gpu", proposal=_FakeProposal())
+    so = LangevinOptimizer.initialize(config, "cuda", proposal=_FakeProposal())
 
     x = torch.zeros(4, 1)
     ebm = _FakeEBM()
