@@ -202,5 +202,5 @@ datasets/*
 *.npz
 models/*
 *.pt
-assets/*
+# assets/*
 wandb/*

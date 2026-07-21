@@ -10,16 +10,27 @@ for n in 10 30; do
     test="coordinate_regression_n_${n}_test.npz"
 
     for method in mse ibc; do
+        extra_args=()
+        if [ "$method" = "ibc" ]; then
+            extra_args=(--stochastic_optimizer derivative_free)
+        fi
+
         python train.py \
             --method "$method" \
             --train_dataset "$train" \
             --test_dataset "$test" \
-            --eval_every 10
+            --epochs 2000 \
+            --batch_size 8 \
+            --eval_every 100 \
+            --coord_conv \
+            "${extra_args[@]}"
 
         python plot_coordinate_regression.py \
             --method "$method" \
             --checkpoint "models/${method}_coordinate_regression_n_${n}_seed_0.pt" \
             --train_dataset "$train" \
-            --test_dataset "$test"
+            --test_dataset "$test" \
+            --coord_conv \
+            "${extra_args[@]}"
     done
 done

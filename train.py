@@ -45,7 +45,7 @@ def load_dataset(dataset_path: str) -> Tuple[TensorDataset, np.ndarray]:
     return dataset, data["target_bounds"].astype(np.float32)
 
 
-def load_model(task: str, method: str) -> nn.Module:
+def load_model(task: str, method: str, coord_conv: bool = False) -> nn.Module:
     """Build the model for a given task and BC method.
 
     The trainers are model agnostic, so this factory is the only place
@@ -63,11 +63,14 @@ def load_model(task: str, method: str) -> nn.Module:
         else:
             mlp_config = models.MLPConfig(feature_dim + action_dim, 256, 1, 1)
 
+        # CoordConv prepends 2 normalized (x, y) coordinate channels, so the CNN
+        # sees 3 (RGB) + 2 = 5 input channels when it is enabled.
+        in_channels = 5 if coord_conv else 3
         config = models.ConvMLPConfig(
-            cnn_config=models.CNNConfig(3),
+            cnn_config=models.CNNConfig(in_channels),
             mlp_config=mlp_config,
             spatial_reduction=models.SpatialReduction.SPATIAL_SOFTMAX,
-            coord_conv=False,
+            coord_conv=coord_conv,
         )
         if method == "mse":
             return models.ConvMLP(config)
@@ -95,12 +98,17 @@ if __name__ == "__main__":
     parser.add_argument("--test_dataset", default=None, help="Filename in datasets/.")
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--eval_every", type=int, default=10)
+    parser.add_argument("--eval_every", type=int, default=50)
     parser.add_argument(
         "--stochastic_optimizer",
         default="derivative_free",
         choices=["derivative_free", "langevin"],
         help="Negative sampler and inference optimizer for the EBM methods.",
+    )
+    parser.add_argument(
+        "--coord_conv",
+        action="store_true",
+        help="Prepend normalized (x, y) coordinate channels to the CNN input.",
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--seed", type=int, default=0)
@@ -116,7 +124,7 @@ if __name__ == "__main__":
     if args.test_dataset is not None:
         test_dataset, _ = load_dataset(os.path.join(DATASETS_DIR, args.test_dataset))
 
-    model = load_model(args.task, args.method)
+    model = load_model(args.task, args.method, coord_conv=args.coord_conv)
 
     if args.method == "mse":
         trainer = MSETrainer(

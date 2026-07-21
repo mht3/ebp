@@ -63,6 +63,11 @@ if __name__ == "__main__":
         default="derivative_free",
         choices=["derivative_free", "langevin"],
     )
+    parser.add_argument(
+        "--coord_conv",
+        action="store_true",
+        help="Must match the flag the checkpoint was trained with.",
+    )
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
 
@@ -72,7 +77,7 @@ if __name__ == "__main__":
     train_coords = np.load(os.path.join(DATASETS_DIR, args.train_dataset))["coordinates"]
     test_data = np.load(os.path.join(DATASETS_DIR, args.test_dataset))
 
-    model = load_model(args.task, args.method).to(device)
+    model = load_model(args.task, args.method, coord_conv=args.coord_conv).to(device)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     stochastic_optimizer = load_stochastic_optimizer(
         args.stochastic_optimizer, target_bounds, args.device
