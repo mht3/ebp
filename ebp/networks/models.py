@@ -5,7 +5,7 @@ Base class for MLP, CNN
 import dataclasses
 import enum
 from functools import partial
-from typing import Callable, Optional, Protocol, Sequence
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 import torch
@@ -180,34 +180,84 @@ class EBMConvMLP(nn.Module):
         return out.view(B, N)
 
 
-class ProposalNetwork(Protocol):
-    """A learnable negative sampler p_xi(y | x)."""
+@dataclasses.dataclass(frozen=True)
+class ResNetMLPConfig:
+    input_dim: int
+    output_dim: int
+    width: int = 128
+    depth: int = 16
+    """Number of hidden dense layers; must be even (two per residual block)."""
+    dropout_prob: float = 0.0
+    activation_fn: ActivationType = ActivationType.RELU
 
-    def sample(self, x: torch.Tensor, num_samples: int) -> torch.Tensor:
-        """Draw `num_samples` proposal samples per row of `x`.
-        Returns a tensor of shape (x.size(0), num_samples, target_dim).
-        """
+
+class ResNetPreActivationBlock(nn.Module):
+    """Pre-activation residual block from IBC's ResNetPreActivationLayer:
+    x + dense(drop(act(dense(drop(act(x)))))), no normalization."""
+
+    def __init__(self, config: ResNetMLPConfig) -> None:
+        super().__init__()
+
+        self.activation = config.activation_fn.value()
+        self.dropout = nn.Dropout(config.dropout_prob)
+        self.dense1 = nn.Linear(config.width, config.width)
+        self.dense2 = nn.Linear(config.width, config.width)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.dense1(self.dropout(self.activation(x)))
+        out = self.dense2(self.dropout(self.activation(out)))
+        return x + out
 
 
-@dataclasses.dataclass
-class ProposalSampler:
-    """Draws R-NCE training negatives straight from the proposal p_xi(y | x).
-    """
+class ResNetMLP(nn.Module):
+    """IBC's MLP for state-based tasks (networks/mlp_ebm.py with
+    layers='ResNetPreActivation'): a linear projection to `width`, depth/2
+    pre-activation residual blocks, and a linear head."""
 
-    device: torch.device
-    bounds: np.ndarray
-    train_samples: int
-    proposal: Optional[ProposalNetwork] = None
+    def __init__(self, config: ResNetMLPConfig) -> None:
+        super().__init__()
 
-    def _sample_uniform(self, x: torch.Tensor, num_samples: int) -> torch.Tensor:
-        bounds = torch.as_tensor(self.bounds, dtype=torch.float32)
-        size = (x.size(0) * num_samples, bounds.shape[1])
-        samples = np.random.uniform(bounds[0, :], bounds[1, :], size=size)
-        samples = torch.as_tensor(samples, dtype=torch.float32, device=x.device)
-        return samples.reshape(x.size(0), num_samples, -1)
+        if config.depth % 2:
+            raise ValueError("'depth' must be even.")
+        self.net = nn.Sequential(
+            nn.Linear(config.input_dim, config.width),
+            *[ResNetPreActivationBlock(config) for _ in range(config.depth // 2)],
+            nn.Linear(config.width, config.output_dim),
+        )
 
-    def sample(self, x: torch.Tensor, ebm: nn.Module) -> torch.Tensor:
-        del ebm  # Negatives must not depend on theta
-        if self.proposal is not None:
-            return self.proposal.sample(x, self.train_samples)
-        return self._sample_uniform(x, self.train_samples)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class EBMResNetMLP(nn.Module):
+    """ResNetMLP as an EBM: input is [state, candidate action], output a scalar
+    energy per candidate."""
+
+    def __init__(self, config: ResNetMLPConfig) -> None:
+        super().__init__()
+
+        self.mlp = ResNetMLP(config)
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        fused = torch.cat([x.unsqueeze(1).expand(-1, y.size(1), -1), y], dim=-1)
+        B, N, D = fused.size()
+        fused = fused.reshape(B * N, D)
+        out = self.mlp(fused)
+        return out.view(B, N)
+
+
+class EBMMLP(nn.Module):
+    """MLP as an EBM: input is [state, candidate action], output a scalar
+    energy per candidate."""
+
+    def __init__(self, config: MLPConfig) -> None:
+        super().__init__()
+
+        self.mlp = MLP(config)
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        fused = torch.cat([x.unsqueeze(1).expand(-1, y.size(1), -1), y], dim=-1)
+        B, N, D = fused.size()
+        fused = fused.reshape(B * N, D)
+        out = self.mlp(fused)
+        return out.view(B, N)

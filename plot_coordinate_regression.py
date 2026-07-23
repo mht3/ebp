@@ -10,7 +10,7 @@ python plot_coordinate_regression.py --method mse \
 Plots the train coordinates (black x) with their convex hull, and the ground
 truth test coordinates colored by the model's pixel error at that location
 (blue circles when the prediction is < 1 pixel off). Saves the figure to
-assets/<checkpoint stem>.png.
+images/<checkpoint stem>.png.
 '''
 
 import argparse
@@ -21,9 +21,15 @@ import numpy as np
 import torch
 from scipy.spatial import ConvexHull
 
-from train import DATASETS_DIR, load_dataset, load_model, load_stochastic_optimizer
+from train import (
+    DATASETS_DIR,
+    load_dataset,
+    load_model,
+    load_proposal,
+    load_stochastic_optimizer,
+)
 
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
 
 RESOLUTION = (96, 96)
 ERROR_CAP = 30.0
@@ -53,7 +59,7 @@ def predict(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--method", required=True, choices=["mse", "ibc"])
+    parser.add_argument("--method", required=True, choices=["mse", "ibc", "rnce"])
     parser.add_argument("--task", default="coordinate_regression")
     parser.add_argument("--checkpoint", required=True, help="Path to a models/*.pt file.")
     parser.add_argument("--train_dataset", required=True, help="Filename in datasets/.")
@@ -77,10 +83,19 @@ if __name__ == "__main__":
     train_coords = np.load(os.path.join(DATASETS_DIR, args.train_dataset))["coordinates"]
     test_data = np.load(os.path.join(DATASETS_DIR, args.test_dataset))
 
+    checkpoint = torch.load(args.checkpoint, map_location=device)
     model = load_model(args.task, args.method, coord_conv=args.coord_conv).to(device)
-    model.load_state_dict(torch.load(args.checkpoint, map_location=device))
+    model.load_state_dict(checkpoint["model"])
+
+    # R-NCE inference warm-starts Langevin from the checkpointed proposal (Alg. 2).
+    proposal = None
+    optimizer_name = args.stochastic_optimizer
+    if args.method == "rnce":
+        proposal = load_proposal(args.task, coord_conv=args.coord_conv).to(device)
+        proposal.load_state_dict(checkpoint["proposal"])
+        optimizer_name = "langevin"
     stochastic_optimizer = load_stochastic_optimizer(
-        args.stochastic_optimizer, target_bounds, args.device
+        optimizer_name, target_bounds, args.device, proposal=proposal
     )
 
     predictions = predict(

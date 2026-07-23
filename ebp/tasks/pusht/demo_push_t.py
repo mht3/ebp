@@ -1,18 +1,19 @@
 '''
-Collect Push-T demonstrations with the mouse, ported from Diffusion Policy's
-demo_pusht.py but saving straight to a train.py-compatible .npz instead of a
-zarr replay buffer.
+Play the Push-T task with the mouse, ported from Diffusion Policy's
+demo_pusht.py. By default nothing is saved — it is just a tool to try the task.
 
-python demo_push_t.py --output push_t_teleop.npz
+python ebp/tasks/pusht/demo_push_t.py
+python ebp/tasks/pusht/demo_push_t.py --record datasets/push_t_teleop.npz
 
 Hover the mouse close to the blue circle to start. Push the T block into the
 green area; the episode terminates on success (95% coverage).
 Press "Q" to exit, "R" to retry the episode, hold "Space" to pause.
 
-Episodes are appended to the output file (saved atomically after each episode),
-seeded in recording order so retries reuse the same initial condition. States
-(20-D keypoints + agent xy) and actions (2-D agent target) are normalized to
-[-1, 1] exactly like convert_pusht_dataset.py.
+With --record, completed episodes are appended to the given .npz (saved
+atomically after each episode), seeded in recording order so retries reuse the
+same initial condition. States (20-D keypoints + agent xy) and actions (2-D
+agent target) are normalized to [-1, 1] exactly like convert_pusht_dataset.py,
+so the file can be used directly as a train.py dataset.
 '''
 
 import argparse
@@ -21,8 +22,7 @@ import os
 import numpy as np
 import pygame
 
-from convert_pusht_dataset import DATASETS_DIR, TARGET_BOUNDS, normalize
-from ebp.tasks.pusht import PushTKeypointsEnv
+from ebp.tasks.pusht import TARGET_BOUNDS, PushTKeypointsEnv, normalize
 
 
 def load_existing(path):
@@ -46,15 +46,23 @@ def save_atomic(path, states, actions, episode_ends):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", default="push_t_teleop.npz",
-                        help="Filename in datasets/.")
+    parser.add_argument(
+        "--record",
+        default=None,
+        metavar="NPZ_PATH",
+        help="Append completed episodes to this .npz (e.g. "
+        "datasets/push_t_teleop.npz). Without it, nothing is saved.",
+    )
     parser.add_argument("--render_size", type=int, default=96)
     parser.add_argument("--control_hz", type=int, default=10)
     args = parser.parse_args()
 
-    os.makedirs(DATASETS_DIR, exist_ok=True)
-    output_path = os.path.join(DATASETS_DIR, args.output)
-    all_states, all_actions, episode_ends = load_existing(output_path)
+    all_states, all_actions, episode_ends = [], [], []
+    if args.record is not None:
+        all_states, all_actions, episode_ends = load_existing(args.record)
+    else:
+        print("Not recording; pass --record <path.npz> to save demonstrations.")
+    n_episodes = len(episode_ends)
 
     kp_kwargs = PushTKeypointsEnv.genenerate_keypoint_manager_params()
     env = PushTKeypointsEnv(
@@ -65,8 +73,8 @@ if __name__ == "__main__":
 
     while True:
         episode_states, episode_actions = [], []
-        # Record in seed order, starting with 0; retries reuse the seed.
-        seed = len(episode_ends)
+        # Seeded in episode order, starting with 0; retries reuse the seed.
+        seed = n_episodes
         print(f"starting seed {seed}")
         env.seed(seed)
         obs = env.reset()
@@ -105,12 +113,16 @@ if __name__ == "__main__":
             img = env.render(mode="human")
             clock.tick(args.control_hz)
 
-        if not retry and episode_states:
+        if retry or not episode_states:
+            print(f"retry seed {seed}")
+        elif args.record is None:
+            n_episodes += 1
+            print(f"finished seed {seed} ({len(episode_states)} steps, not saved)")
+        else:
             all_states.append(np.stack(episode_states))
             all_actions.append(np.stack(episode_actions))
             prev_end = episode_ends[-1] if episode_ends else 0
             episode_ends.append(prev_end + len(episode_states))
-            save_atomic(output_path, all_states, all_actions, episode_ends)
+            save_atomic(args.record, all_states, all_actions, episode_ends)
+            n_episodes += 1
             print(f"saved seed {seed} ({len(episode_states)} steps)")
-        else:
-            print(f"retry seed {seed}")

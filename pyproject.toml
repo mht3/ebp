@@ -9,6 +9,12 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy", "tqdm", "pygame", "matplotlib",
     "wandb", "tensorboard", "scipy", "torch>=2.7", "torchvision",
+    "scikit-learn",
+    "gymnasium",
+    # Push-T env stack. pymunk 7.0 removed Space.add_collision_handler, which
+    # the vendored env uses; zarr 3.x changed the API used to read the official
+    # Diffusion Policy dataset.
+    "pymunk>=6.6,<7", "shapely>=2.0", "opencv-python", "scikit-image", "zarr<3",
 ]
 
 [project.optional-dependencies]

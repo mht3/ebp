@@ -1,5 +1,5 @@
 import torch
-from ebp import models
+from ebp.networks import models
 
 def test_conv_net():
     '''

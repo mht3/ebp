@@ -6,7 +6,8 @@ Usage:
     python generate_data.py --task coordinate_regression --samples 30 --seed 0 \
         --filename coordinate_regression_n_30_seed_0.npz
 
-    task:     the task located in ebp/tasks/ (currently: coordinate_regression)
+    task:     the task located in ebp/tasks/ (coordinate_regression, make_moons;
+              push_t data comes from convert_pusht_dataset.py / demo_push_t.py)
     samples:  number of (state, action) pairs to generate
     seed:     numpy seed for reproducibility
     filename: name of the .npz file, saved into the datasets/ folder.
@@ -26,20 +27,26 @@ import os
 
 import numpy as np
 
-from ebp.tasks import CoordinateRegression, DatasetConfig
+from ebp.tasks import (
+    CoordinateRegression,
+    DatasetConfig,
+    MakeMoons,
+    MakeMoonsConfig,
+)
 
 DATASETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets")
 
 TASKS = {
     "coordinate_regression": (CoordinateRegression, DatasetConfig),
+    "make_moons": (MakeMoons, MakeMoonsConfig),
 }
 
 
-def build_dataset(task: str, samples: int, seed: int):
+def build_dataset(task: str, samples: int, seed: int, **config_kwargs):
     if task not in TASKS:
         raise ValueError(f"Unknown task '{task}'. Available: {list(TASKS)}")
     dataset_cls, config_cls = TASKS[task]
-    return dataset_cls(config_cls(dataset_size=samples, seed=seed))
+    return dataset_cls(config_cls(dataset_size=samples, seed=seed, **config_kwargs))
 
 
 def dump_npz(dataset, path: str) -> None:
@@ -53,6 +60,10 @@ def dump_npz(dataset, path: str) -> None:
         arrays["coordinates"] = dataset.coordinates
     if hasattr(dataset, "get_target_bounds"):
         arrays["target_bounds"] = dataset.get_target_bounds()
+    # Episode boundaries let training window observation histories without
+    # crossing trajectories (see load_dataset's sequence_length).
+    if hasattr(dataset, "episode_ends"):
+        arrays["episode_ends"] = dataset.episode_ends
 
     np.savez(path, **arrays)
     print(
@@ -73,12 +84,22 @@ if __name__ == "__main__":
         help="An existing datasets/*.npz whose coordinates the new set must avoid "
         "(used to build a leakage-free test set).",
     )
+    parser.add_argument(
+        "--make_moons_test",
+        action="store_true",
+        help="make_moons only: build the held-out strip (the multimodal test "
+        "set) instead of the training set that excludes it.",
+    )
     args = parser.parse_args()
 
     filename = args.filename or f"{args.task}_n_{args.samples}_seed_{args.seed}.npz"
 
+    config_kwargs = {}
+    if args.task == "make_moons" and args.make_moons_test:
+        config_kwargs["held_out"] = True
+
     os.makedirs(DATASETS_DIR, exist_ok=True)
-    dataset = build_dataset(args.task, args.samples, args.seed)
+    dataset = build_dataset(args.task, args.samples, args.seed, **config_kwargs)
 
     if args.exclude is not None:
         # --exclude is only meaningful for coordinate regression, whose npz
