@@ -117,7 +117,7 @@ bash scripts/generate_coordinate_regression_dataset.sh
 bash scripts/train_coordinate_regression.sh
 ```
 
-The dataset will be saved under `datasets/`, and three separate torch models will be saved in `models/` after training. Results will be printed after running the shell script and images will be saved in `assets/`.
+The dataset will be saved under `datasets/`, and three separate torch models will be saved in `models/` after training. Results will be printed after running the shell script and images will be saved in `images/`.
 
 ### Push-T
 
@@ -127,23 +127,19 @@ Download [Diffusion Policy](https://diffusion-policy.cs.columbia.edu)'s Push-T d
 bash scripts/generate_push_t_dataset.sh
 ```
 
-Train MSE and IBC policies, then roll each one out in four initial conditions; time-shaded rollout plots and a multimodal-behavior figure (many short rollouts overlaid from a symmetric initial condition, where the agent must pass the block on either side) are saved to `images/`.
-
 ```sh
 bash scripts/train_push_t.sh
 ```
 
-Try the task yourself with the mouse via `python ebp/tasks/pusht/demo_push_t.py`. Nothing is saved unless you pass `--record datasets/push_t_teleop.npz`, which appends your demonstrations to a training-ready `.npz`.
+Try the task yourself with the mouse via `python ebp/tasks/pusht/demo_push_t.py`. Nothing is saved unless you pass `--record datasets/push_t_teleop.npz`, which saves the demos to an `.npz`.
 
 ### Moons Dataset
 
-Generate the two-moons train set (excluding the held-out strip) and test set (only the strip) under `datasets/`.
+Generate the two-moons train set (excluding the held-out strip) and test set under `datasets/`.
 
 ```sh
 bash scripts/generate_make_moons_dataset.sh
 ```
-
-Train MSE and IBC and plot each model's predicted actions over the held-out strip (plus the IBC energy landscape) to `images/`.
 
 ```sh
 bash scripts/train_make_moons.sh
