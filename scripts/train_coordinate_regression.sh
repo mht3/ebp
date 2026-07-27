@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Train MSE and IBC on the coordinate regression task for n=10 and n=30, then
-# plot each model's test predictions to assets/.
+# Train MSE and IBC on the coordinate regression task for n=10 and n=30,
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -19,9 +18,6 @@ for n in 10 30; do
             extra_args=(--stochastic_optimizer derivative_free)
             train_args=(--num_counterexamples 64)
         elif [ "$method" = "rnce" ]; then
-            # R-NCE inference is Langevin warm-started from the learned proposal
-            # (Alg. 2), at the same iters as training and a small support-preserving
-            # step. Shared with the plot call so both use the identical sampler.
             extra_args=(--stochastic_optimizer langevin --step_size 5e-5 --iters 20)
             # note for n=10, some slight l2 regularization helps and is what is in the readme results (5e-4). for n=30, l2 reg inflates the std and underfits.
             train_args=(--num_counterexamples 64 --l2_weight 0.0)

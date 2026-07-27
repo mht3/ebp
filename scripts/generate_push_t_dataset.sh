@@ -3,7 +3,7 @@
 # mouse-teleop episodes, 25650 steps, ~100MB) and convert it to
 # datasets/push_t_train.npz + datasets/push_t_test.npz.
 #
-# Extra demonstrations can be recorded with demo_push_t.py.
+# Extra demos can be recorded with demo_push_t.py.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

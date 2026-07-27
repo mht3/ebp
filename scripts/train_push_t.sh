@@ -14,10 +14,6 @@ for method in mse ibc rnce; do
         extra_args=(--stochastic_optimizer langevin --inference_samples 1024)
         train_args=(--num_counterexamples 64 --iters 20)
     elif [ "$method" = "rnce" ]; then
-        # R-NCE forces langevin inference in train.py; plot/eval still need it told.
-        # --iters is shared so train/plot/eval refine for the same number of
-        # Langevin steps (<=25); the small support-preserving step is applied
-        # automatically for the learned proposal (see load_stochastic_optimizer).
         extra_args=(--stochastic_optimizer langevin --inference_samples 1024 --iters 20)
         train_args=(--num_counterexamples 64 --l2_weight 0.01)
     fi
@@ -40,8 +36,6 @@ for method in mse ibc rnce; do
         --train_dataset "$train" \
         "${extra_args[@]}"
 
-    # Multimodal behavior figure (Diffusion Policy Fig. 3): many short
-    # rollouts overlaid per initial condition.
     python plot_push_t.py \
         --method "$method" \
         --checkpoint "models/${method}_push_t_train.pt" \
@@ -49,7 +43,6 @@ for method in mse ibc rnce; do
         --multimodal \
         "${extra_args[@]}"
 
-    # Score:mean max-coverage score over random initial conditions x rollouts).
     python eval_push_t.py \
         --method "$method" \
         --checkpoint "models/${method}_push_t_train.pt" \

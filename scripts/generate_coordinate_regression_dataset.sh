@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # Generate train and test sets for the coordinate regression task at n=10 and n=30.
-#
-# Train sets use seed 0. Following Kevin Zakka's IBC, each test set has 500
-# samples (seed 1) and passes --exclude <train file> so any coordinate colliding
-# with the train set is resampled, giving a leakage-free measure of
-# generalization to unseen locations.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
