@@ -8,7 +8,7 @@ for n in 10 30; do
     train="coordinate_regression_n_${n}_seed_0.npz"
     test="coordinate_regression_n_${n}_test.npz"
 
-    for method in rnce; do
+    for method in mse ibc rnce; do
         # extra_args are shared with the plot call; train_args are training-only.
         extra_args=()
         train_args=()

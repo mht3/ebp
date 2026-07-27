@@ -73,6 +73,10 @@ pytest tests/
 |-----------------|-----------------|-----------------|
 |<img src="assets/mse_make_moons_predictions.png" width="250"/>|<img src="assets/ibc_make_moons_predictions.png" width="250"/>|<img src="assets/rnce_make_moons_predictions.png" width="250"/> |
 
+IBC inference as energy descent: from uniform action samples at a fixed state $s = 0.4$, gradient-based MCMC on the learned energy drives the samples onto both moons — the two valid actions a single-mode regressor cannot represent. Left: the $(s, a)$ plane (training data in gray); right: the energy slice at $s = 0.4$.
+
+<img src="assets/make_moons_energy_slice.gif" width="640"/>
+
 
 ### 2D Coordinate Regression
 

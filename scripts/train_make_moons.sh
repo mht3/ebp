@@ -35,3 +35,9 @@ for method in mse ibc rnce; do
         --test_dataset "$test" \
         "${extra_args[@]}"
 done
+
+# Energy slice at a single held-out observation (s = 0.4, inside the strip),
+# overlaying IBC vs R-NCE: both show energy minima at both action modes.
+python plot_make_moons_energy_slice.py \
+    --train_dataset "$train" \
+    --obs 0.4
