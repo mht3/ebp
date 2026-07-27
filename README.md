@@ -84,7 +84,7 @@ pytest tests/
 
 ### Push-T
 
-Policy rollouts on the Push-T task. The **Multimodal** row overlays several short rollouts from a single symmetric initial condition (the agent can pass the block on either side), and the **Rollout** row shows one full rollout in each of four initial conditions. In both, the moving block is color coded by time (lightest at the start, darkest at the end), the pusher path uses a yellow-to-purple heatmap, and the goal configuration is filled green.
+Policy rollouts on the Push-T task. Moving block is color coded by time (lightest at the start, darkest at the end), the pusher path uses a yellow-to-purple heatmap, and the goal configuration is filled green.
 
 |            | MSE | IBC | R-NCE |
 |------------|-----------------|-----------------|-----------------|
