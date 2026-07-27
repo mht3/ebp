@@ -47,6 +47,13 @@ class GaussianProposal(nn.Module):
 
         self.log_std = nn.Parameter(torch.ones(self.act_dim) * config.log_std_init)
 
+    @property
+    def mean_net(self) -> nn.Module:
+        """The mean network mu(x). The L2 penalty regularizes THIS, not log_std
+        (an L2 prior on log_std would pull the proposal variance toward 1.0, i.e.
+        the whole action range, quietly widening the negative sampler)."""
+        return self.mlp
+
     def sample(self, x: torch.Tensor, num_samples: int) -> torch.Tensor:
         """Draw `num_samples` proposal samples per row of x.
         Returns (B, num_samples, act_dim)  <-- MUST match _sample_uniform's shape.
@@ -96,6 +103,12 @@ class CNNGaussianProposal(nn.Module):
         # which must be act_dim.
         self.conv_mlp = ConvMLP(config.conv_mlp_config)
         self.log_std = nn.Parameter(torch.ones(self.act_dim) * config.log_std_init)
+
+    @property
+    def mean_net(self) -> nn.Module:
+        """The mean network mu(x); the L2 penalty regularizes this, not log_std.
+        See GaussianProposal.mean_net."""
+        return self.conv_mlp
 
     def sample(self, x: torch.Tensor, num_samples: int) -> torch.Tensor:
         """Draw num_samples per row. x is an image (B, C, H, W).

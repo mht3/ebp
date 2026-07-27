@@ -12,16 +12,14 @@ for method in mse ibc rnce; do
     train_args=()
     if [ "$method" = "ibc" ]; then
         extra_args=(--stochastic_optimizer langevin --inference_samples 1024)
-        # Training-only flags: extra_args is shared with the plot/eval calls
-        # below, which don't accept these. 64 negatives keeps IBC training
-        # tractable; 20 Langevin iters at training time.
         train_args=(--num_counterexamples 64 --iters 20)
     elif [ "$method" = "rnce" ]; then
         # R-NCE forces langevin inference in train.py; plot/eval still need it told.
-        extra_args=(--stochastic_optimizer langevin --inference_samples 1024)
-        # 64 negatives from the learnable Gaussian proposal; 20 Langevin iters at
-        # inference; L2 on the proposal MLE off by default.
-        train_args=(--num_counterexamples 64 --l2_weight 0.0 --iters 20)
+        # --iters is shared so train/plot/eval refine for the same number of
+        # Langevin steps (<=25); the small support-preserving step is applied
+        # automatically for the learned proposal (see load_stochastic_optimizer).
+        extra_args=(--stochastic_optimizer langevin --inference_samples 1024 --iters 20)
+        train_args=(--num_counterexamples 64 --l2_weight 0.01)
     fi
 
     python train.py \
@@ -32,7 +30,7 @@ for method in mse ibc rnce; do
         --sequence_length 2 \
         --epochs 2000 \
         --batch_size 256 \
-        --eval_every 200 \
+        --eval_every 1000 \
         "${extra_args[@]}" \
         "${train_args[@]}"
 

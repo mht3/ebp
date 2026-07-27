@@ -69,6 +69,14 @@ if __name__ == "__main__":
         default="derivative_free",
         choices=["derivative_free", "langevin"],
     )
+    parser.add_argument("--iters", type=int, default=None,
+                        help="Langevin inference iterations. Match training to "
+                        "reproduce the wandb test/mse; defaults to the config.")
+    parser.add_argument("--step_size", type=float, default=None,
+                        help="Langevin step size override (R-NCE defaults to a "
+                        "small support-preserving step; see load_stochastic_optimizer).")
+    parser.add_argument("--noise_scale", type=float, default=None,
+                        help="Langevin noise scale override (R-NCE default).")
     parser.add_argument(
         "--coord_conv",
         action="store_true",
@@ -95,7 +103,8 @@ if __name__ == "__main__":
         proposal.load_state_dict(checkpoint["proposal"])
         optimizer_name = "langevin"
     stochastic_optimizer = load_stochastic_optimizer(
-        optimizer_name, target_bounds, args.device, proposal=proposal
+        optimizer_name, target_bounds, args.device, proposal=proposal,
+        iters=args.iters, step_size=args.step_size, noise_scale=args.noise_scale,
     )
 
     predictions = predict(

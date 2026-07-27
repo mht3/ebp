@@ -167,7 +167,11 @@ class LangevinOptimizer:
         """Draw y_0 from the proposal distribution p_xi(y | x), or uniform if
         no proposal network is given."""
         if self.proposal is not None:
-            return self.proposal.sample(x, num_samples).to(self.device)
+            samples = self.proposal.sample(x, num_samples).to(self.device)
+            # The Gaussian proposal can place y_0 outside the action box; clamp
+            # so the chain starts in-bounds (the uniform path already is).
+            bounds = torch.as_tensor(self.bounds, dtype=torch.float32, device=self.device)
+            return samples.clamp(min=bounds[0, :], max=bounds[1, :])
         samples = self._sample_uniform(x.size(0) * num_samples)
         return samples.reshape(x.size(0), num_samples, -1)
 

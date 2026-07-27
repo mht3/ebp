@@ -9,18 +9,22 @@ for n in 10 30; do
     train="coordinate_regression_n_${n}_seed_0.npz"
     test="coordinate_regression_n_${n}_test.npz"
 
-    for method in mse ibc rnce; do
+    for method in rnce; do
         # extra_args are shared with the plot call; train_args are training-only.
         extra_args=()
         train_args=()
         if [ "$method" = "mse" ]; then
             train_args=(--l2_weight 0.0001)
         elif [ "$method" = "ibc" ]; then
-            extra_args=(--stochastic_optimizer langevin)
+            extra_args=(--stochastic_optimizer derivative_free)
             train_args=(--num_counterexamples 64)
         elif [ "$method" = "rnce" ]; then
-            extra_args=(--stochastic_optimizer langevin)
-            train_args=(--num_counterexamples 64 --l2_weight 0.001)
+            # R-NCE inference is Langevin warm-started from the learned proposal
+            # (Alg. 2), at the same iters as training and a small support-preserving
+            # step. Shared with the plot call so both use the identical sampler.
+            extra_args=(--stochastic_optimizer langevin --step_size 5e-5 --iters 20)
+            # note for n=10, some slight l2 regularization helps and is what is in the readme results (5e-4). for n=30, l2 reg inflates the std and underfits.
+            train_args=(--num_counterexamples 64 --l2_weight 0.0)
         fi
 
         python train.py \

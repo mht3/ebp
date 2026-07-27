@@ -12,10 +12,7 @@ import torch.nn.functional as F
 
 
 def l2_penalty(module: nn.Module, weight: float) -> torch.Tensor:
-    """weight * sum of squared parameters of `module`.
-
-    An explicit L2 loss term (distinct from Adam's weight_decay). Used by
-    MSETrainer (over the model) and RNCETrainer (over the proposal's MLE loss).
+    """weight * sum of squared parameters.
     """
     l2_loss = 0.0
     for p in module.parameters():

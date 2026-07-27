@@ -73,6 +73,14 @@ if __name__ == "__main__":
         choices=["derivative_free", "langevin"],
     )
     parser.add_argument("--inference_samples", type=int, default=None)
+    parser.add_argument("--iters", type=int, default=None,
+                        help="Langevin inference iterations. Match training to "
+                        "reproduce the wandb test/mse; defaults to the config.")
+    parser.add_argument("--step_size", type=float, default=None,
+                        help="Langevin step size override (R-NCE defaults to a "
+                        "small support-preserving step; see load_stochastic_optimizer).")
+    parser.add_argument("--noise_scale", type=float, default=None,
+                        help="Langevin noise scale override (R-NCE default 1.0).")
     parser.add_argument("--sequence_length", type=int, default=2)
     parser.add_argument("--num_seeds", type=int, default=20,
                         help="Random initial conditions (paper uses 256).")
@@ -108,7 +116,8 @@ if __name__ == "__main__":
         optimizer_name = "langevin"
     stochastic_optimizer = load_stochastic_optimizer(
         optimizer_name, target_bounds, args.device,
-        inference_samples=args.inference_samples, proposal=proposal,
+        inference_samples=args.inference_samples, iters=args.iters,
+        proposal=proposal, step_size=args.step_size, noise_scale=args.noise_scale,
     )
 
     kp_kwargs = PushTKeypointsEnv.genenerate_keypoint_manager_params()

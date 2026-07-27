@@ -151,14 +151,7 @@ class IBCTrainer(BaseTrainer):
 
 
 class RNCETrainer(BaseTrainer):
-    """Ranking Noise Contrastive Estimation (paper Algorithm 1).
-
-    Full-epoch phases (overrides BaseTrainer.train): each epoch trains the proposal
-    q_xi over the whole loader by maximum likelihood (minimize -log q(y|x)), THEN
-    trains the EBM theta over the whole loader by the R-NCE ranking loss over
-    {y} + K negatives. Each phase owns its own optimizer step (proposal_optimizer /
-    self.optimizer). The negatives and their log q must NOT carry theta-gradients
-    (paper Remark 3.2), so the log q fed to RNCE is detached.
+    """Ranking Noise Contrastive Estimation.
     """
 
     def __init__(
@@ -234,8 +227,9 @@ class RNCETrainer(BaseTrainer):
         """
         self.proposal_optimizer.zero_grad()
         logq_pos = self.proposal.log_prob(x, y.unsqueeze(1)).squeeze(1)
-        # L2 penalty regularizes the proposal (xi) only, added to its MLE loss.
-        proposal_loss = -logq_pos.mean() + l2_penalty(self.proposal, self.l2_weight)
+        # L2 penalty regularizes the proposal's MEAN network (xi) only -- never
+        # log_std (see GaussianProposal.mean_net) -- added to its MLE loss.
+        proposal_loss = -logq_pos.mean() + l2_penalty(self.proposal.mean_net, self.l2_weight)
         proposal_loss.backward()
         self.proposal_optimizer.step()
         return proposal_loss.item()

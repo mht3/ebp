@@ -190,6 +190,11 @@ def load_proposal(task: str, sequence_length: int = 2, coord_conv: bool = False)
     return GaussianProposal(config)
 
 
+# proposal already warm starts near optimal policy, so we only need to refine.
+RNCE_LANGEVIN_STEP_SIZE = 5e-5
+RNCE_LANGEVIN_NOISE_SCALE = 0.5
+
+
 def load_stochastic_optimizer(
     name: str,
     bounds: np.ndarray,
@@ -197,6 +202,8 @@ def load_stochastic_optimizer(
     inference_samples: Optional[int] = None,
     iters: Optional[int] = None,
     proposal: Optional[GaussianProposal] = None,
+    step_size: Optional[float] = None,
+    noise_scale: Optional[float] = None,
 ) -> StochasticOptimizer:
     """Build the inference-time action-search optimizer. Optionally warm-started
     from `proposal` (Algorithm 2). Training negatives are NOT drawn here -- the
@@ -210,6 +217,15 @@ def load_stochastic_optimizer(
         return DerivativeFreeOptimizer.initialize(
             DerivativeFreeConfig(bounds=bounds, **kwargs), device_type, proposal=proposal
         )
+    # A learned Gaussian proposal (has log_std) means R-NCE: seed the small,
+    # support-preserving Langevin step + paper noise, which explicit overrides win.
+    if hasattr(proposal, "log_std"):
+        kwargs["step_size"] = RNCE_LANGEVIN_STEP_SIZE
+        kwargs["noise_scale"] = RNCE_LANGEVIN_NOISE_SCALE
+    if step_size is not None:
+        kwargs["step_size"] = step_size
+    if noise_scale is not None:
+        kwargs["noise_scale"] = noise_scale
     return LangevinOptimizer.initialize(
         LangevinDynamicsConfig(bounds=bounds, **kwargs), device_type, proposal=proposal
     )
@@ -268,6 +284,20 @@ if __name__ == "__main__":
         default=None,
         help="Stochastic optimizer inference iterations (defaults to the "
         "optimizer config's own default when unset).",
+    )
+    parser.add_argument(
+        "--step_size",
+        type=float,
+        default=None,
+        help="Langevin inference step size (R-NCE only; defaults to the small "
+        "support-preserving step in load_stochastic_optimizer when unset).",
+    )
+    parser.add_argument(
+        "--noise_scale",
+        type=float,
+        default=None,
+        help="Langevin inference noise scale (R-NCE only; defaults to the "
+        "R-NCE value in load_stochastic_optimizer when unset).",
     )
     parser.add_argument(
         "--l2_weight",
@@ -346,6 +376,8 @@ if __name__ == "__main__":
             inference_samples=args.inference_samples,
             iters=args.iters,
             proposal=proposal,
+            step_size=args.step_size,
+            noise_scale=args.noise_scale,
         )
         trainer = RNCETrainer(
             model,
