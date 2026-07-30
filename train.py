@@ -60,42 +60,54 @@ def window_episodes(
     actions: np.ndarray,
     episode_ends: np.ndarray,
     sequence_length: int,
+    prediction_horizon: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Stack a same-trajectory observation history for each action (many-to-one).
+    """Stack a same-trajectory observation history and a future action chunk.
 
-    Step t becomes ([obs_{t-s+1} ... obs_t] flattened oldest-first, a_t), as in
-    IBC's sequence_length windowing. The first s-1 steps of each episode lack a
-    full history and are dropped; windows never cross episode boundaries.
+    Step t becomes ([obs_{t-s+1} ... obs_t] flattened oldest-first, [a_t ...
+    a_{t+p-1}] flattened), as in IBC's sequence_length windowing plus Diffusion
+    Policy's prediction-horizon action chunking. The first s-1 steps of each
+    episode lack a full history and are dropped; the action chunk is padded by
+    repeating the last action near the episode end. Windows/chunks never cross
+    episode boundaries (chunks are padded, not borrowed from the next episode).
     """
     xs, ys = [], []
     start = 0
     for end in episode_ends:
         for t in range(start + sequence_length - 1, end):
             xs.append(states[t - sequence_length + 1 : t + 1].reshape(-1))
-            ys.append(actions[t])
+            chunk = actions[t : min(t + prediction_horizon, end)]
+            if len(chunk) < prediction_horizon:  # pad at the episode end
+                pad = np.repeat(chunk[-1:], prediction_horizon - len(chunk), axis=0)
+                chunk = np.concatenate([chunk, pad], axis=0)
+            ys.append(chunk.reshape(-1))
         start = end
     return np.asarray(xs, dtype=np.float32), np.asarray(ys, dtype=np.float32)
 
 
 def load_dataset(
-    dataset_path: str, sequence_length: int = 2
+    dataset_path: str, sequence_length: int = 2, prediction_horizon: int = 1
 ) -> Tuple[TensorDataset, np.ndarray]:
-    """Load a datasets/*.npz file into a (state, action) TensorDataset.
+    """Load a datasets/*.npz file into a (state, action-chunk) TensorDataset.
 
     Episodic datasets (those with an "episode_ends" key) store per-step states
-    and get windowed into observation histories of `sequence_length`.
+    and get windowed into observation histories of `sequence_length` with a
+    future action chunk of `prediction_horizon` steps.
 
-    Also returns the per-dimension action bounds used by the stochastic optimizers.
+    Also returns the per-dimension action bounds used by the stochastic
+    optimizers, tiled to the chunk length (2, action_dim * prediction_horizon).
     """
     data = np.load(dataset_path)
     states, actions = data["states"], data["actions"]
     if "episode_ends" in data:
         states, actions = window_episodes(
-            states, actions, data["episode_ends"], sequence_length
+            states, actions, data["episode_ends"], sequence_length, prediction_horizon
         )
     dataset = TensorDataset(torch.from_numpy(states), torch.from_numpy(actions))
     # float32 so the stochastic optimizers' clamp doesn't promote samples to double.
-    return dataset, data["target_bounds"].astype(np.float32)
+    # Every candidate action is a chunk, so the per-step bounds tile over the horizon.
+    bounds = np.tile(data["target_bounds"], (1, prediction_horizon)).astype(np.float32)
+    return dataset, bounds
 
 
 def load_model(
@@ -104,8 +116,10 @@ def load_model(
     coord_conv: bool = False,
     sequence_length: int = 2,
     arch: str = "mlp",
+    prediction_horizon: int = 1,
 ) -> nn.Module:
-    """Build the model for a given task and BC method.
+    """Build the model for a given task and BC method. `prediction_horizon`
+    (Push-T only) makes the action a chunk of that many future steps.
     """
     if task == "coordinate_regression":
         feature_dim, action_dim = 16 * 2, 2
@@ -128,10 +142,11 @@ def load_model(
         return models.EBMConvMLP(config)
     if task == "push_t":
         # 9 T-block keypoints (18) + agent xy (2) per observation step, from
-        # Diffusion Policy's PushTKeypointsEnv. The EBM also takes the 2D
-        # action (absolute agent target, normalized) and outputs a scalar
+        # Diffusion Policy's PushTKeypointsEnv. The EBM also takes the candidate
+        # action -- a chunk of `prediction_horizon` future 2D agent targets
+        # (2 * prediction_horizon values, normalized) -- and outputs a scalar
         # energy.
-        obs_dim, action_dim = 20 * sequence_length, 2
+        obs_dim, action_dim = 20 * sequence_length, 2 * prediction_horizon
         if arch == "mlp":
             # Diffusion Policy's IBC baseline net: 4 hidden layers x 1024,
             # ReLU, dropout 0.1.
@@ -159,12 +174,14 @@ def load_model(
     raise ValueError(f"Unknown task '{task}'.")
 
 
-def load_proposal(task: str, sequence_length: int = 2, coord_conv: bool = False):
+def load_proposal(task: str, sequence_length: int = 2, coord_conv: bool = False,
+                  prediction_horizon: int = 1, cov_rank: int = 0):
     """Build the diagonal-Gaussian proposal q_xi(y | x) for R-NCE, sized per task.
 
     Vector-observation tasks (push_t, make_moons) get an MLP-mean GaussianProposal.
     The image task (coordinate_regression) gets a CNN-mean CNNGaussianProposal, sized
-    exactly like load_model's coordinate_regression EBM branch.
+    exactly like load_model's coordinate_regression EBM branch. `prediction_horizon`
+    (Push-T only) makes the proposal model a chunk of that many future actions.
     """
     if task == "coordinate_regression":
         feature_dim, action_dim = 16 * 2, 2
@@ -179,14 +196,15 @@ def load_proposal(task: str, sequence_length: int = 2, coord_conv: bool = False)
             CNNGaussianProposalConfig(conv_mlp_config, act_dim=action_dim))
 
     if task == "push_t":
-        obs_dim, action_dim = 20 * sequence_length, 2
+        obs_dim, action_dim = 20 * sequence_length, 2 * prediction_horizon
     elif task == "make_moons":
         obs_dim, action_dim = 1, 1
     else:
         raise ValueError("Unsupported task: `{}`".format(task))
 
     config = GaussianProposalConfig(obs_dim=obs_dim, act_dim=action_dim,
-                                    hidden_dim=256, hidden_depth=2, log_std_init=0.0)
+                                    hidden_dim=256, hidden_depth=2, log_std_init=0.0,
+                                    cov_rank=cov_rank)
     return GaussianProposal(config)
 
 
@@ -264,6 +282,22 @@ if __name__ == "__main__":
         help="Observation history length. ONly used for Push T task.",
     )
     parser.add_argument(
+        "--prediction_horizon",
+        type=int,
+        default=1,
+        help="Push-T action chunking: predict this many future actions per step "
+        "(Diffusion Policy's Tp; default 1 = single action, unchanged behavior). "
+        "The EBM action becomes 2 * prediction_horizon dimensional.",
+    )
+    parser.add_argument(
+        "--action_horizon",
+        type=int,
+        default=1,
+        help="Push-T action chunking: execute this many actions of each predicted "
+        "chunk before re-planning (Diffusion Policy's Ta). Used at inference only "
+        "(eval/plot); ignored during training. Must be <= prediction_horizon.",
+    )
+    parser.add_argument(
         "--inference_samples",
         type=int,
         default=None,
@@ -300,12 +334,30 @@ if __name__ == "__main__":
         "R-NCE value in load_stochastic_optimizer when unset).",
     )
     parser.add_argument(
+        "--cov_rank",
+        type=int,
+        default=0,
+        help="R-NCE proposal covariance rank. 0 (default) = diagonal. k>0 uses "
+        "diag + U U^T with U of rank k, letting the proposal model correlations "
+        "between action dimensions -- worth ~60 nats/sample on Push-T action "
+        "chunks at k=4. Checkpoints get an _r<k> suffix so they coexist with "
+        "the diagonal ones. See GaussianProposalConfig.cov_rank.",
+    )
+    parser.add_argument(
         "--l2_weight",
         type=float,
         default=0.0,
         help="Weight of the explicit L2 (sum-of-squared-parameters) penalty added "
         "to the loss. Applies to the MSE model (mse) and the learned proposal's MLE "
         "loss (rnce). Default 0.0 = off. Distinct from Adam weight_decay.",
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=OptimizerConfig.learning_rate,
+        help="Adam learning rate (default 1e-3). Lower it for action chunking "
+        "(prediction_horizon > 1): the higher-dimensional contrastive loss has a "
+        "noisier gradient, so the EBM methods benefit from a smaller step.",
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--seed", type=int, default=0)
@@ -314,13 +366,17 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    optimizer_config = OptimizerConfig(learning_rate=args.learning_rate)
+
     train_dataset, target_bounds = load_dataset(
-        os.path.join(DATASETS_DIR, args.train_dataset), args.sequence_length
+        os.path.join(DATASETS_DIR, args.train_dataset),
+        args.sequence_length, args.prediction_horizon,
     )
     test_dataset = None
     if args.test_dataset is not None:
         test_dataset, _ = load_dataset(
-            os.path.join(DATASETS_DIR, args.test_dataset), args.sequence_length
+            os.path.join(DATASETS_DIR, args.test_dataset),
+            args.sequence_length, args.prediction_horizon,
         )
 
     model = load_model(
@@ -329,6 +385,7 @@ if __name__ == "__main__":
         coord_conv=args.coord_conv,
         sequence_length=args.sequence_length,
         arch=args.arch,
+        prediction_horizon=args.prediction_horizon,
     )
 
     if args.method == "mse":
@@ -336,7 +393,7 @@ if __name__ == "__main__":
             model,
             train_dataset,
             test_dataset,
-            optimizer_config=OptimizerConfig(),
+            optimizer_config=optimizer_config,
             device_type=args.device,
             batch_size=args.batch_size,
             l2_weight=args.l2_weight,
@@ -355,7 +412,7 @@ if __name__ == "__main__":
             model,
             train_dataset,
             test_dataset,
-            optimizer_config=OptimizerConfig(),
+            optimizer_config=optimizer_config,
             device_type=args.device,
             batch_size=args.batch_size,
             stochastic_optimizer=stochastic_optimizer,
@@ -366,7 +423,9 @@ if __name__ == "__main__":
         # One learnable proposal, three roles: trained by RNCETrainer (MLE), drawn
         # from for training negatives, and warm-starting Langevin inference (Alg. 2).
         proposal = load_proposal(
-            args.task, sequence_length=args.sequence_length, coord_conv=args.coord_conv
+            args.task, sequence_length=args.sequence_length,
+            coord_conv=args.coord_conv, prediction_horizon=args.prediction_horizon,
+            cov_rank=args.cov_rank,
         )
         # Inference is always Langevin for R-NCE (Alg. 2), regardless of the CLI flag.
         stochastic_optimizer = load_stochastic_optimizer(
@@ -383,7 +442,7 @@ if __name__ == "__main__":
             model,
             train_dataset,
             test_dataset,
-            optimizer_config=OptimizerConfig(),
+            optimizer_config=optimizer_config,
             device_type=args.device,
             batch_size=args.batch_size,
             proposal=proposal,
@@ -395,6 +454,13 @@ if __name__ == "__main__":
     trainer.train(args.epochs, eval_every=args.eval_every)
 
     os.makedirs(MODELS_DIR, exist_ok=True)
-    checkpoint = f"{args.method}_{os.path.splitext(args.train_dataset)[0]}.pt"
+    # Encode the action-chunk length in the name (Tp > 1) so chunked models don't
+    # clobber the single-step checkpoint and the two can coexist.
+    suffix = f"_p{args.prediction_horizon}" if args.prediction_horizon > 1 else ""
+    # A correlated-covariance proposal is a different architecture, so its
+    # checkpoint must not overwrite the diagonal one.
+    if args.method == "rnce" and args.cov_rank > 0:
+        suffix += f"_r{args.cov_rank}"
+    checkpoint = f"{args.method}_{os.path.splitext(args.train_dataset)[0]}{suffix}.pt"
     trainer.save(os.path.join(MODELS_DIR, checkpoint))
     print(f"Saved model to models/{checkpoint}")

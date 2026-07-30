@@ -10,10 +10,11 @@ where r is the ratio of the block-goal intersection area to the block area (the
 env returns exactly this as its per-step reward). An episode ends when s = 1 or
 after --max_steps steps, and its score is the maximum s over the episode. The
 reported number is the mean episode score over --num_seeds random initial
-conditions, each rolled out --num_rollouts times (the paper uses 256 seeds x 32
-rollouts; the default here is smaller so it runs in reasonable time). MSE is
-deterministic, so its rollouts within a seed are identical and --num_rollouts
-only adds variance for IBC.
+conditions, each rolled out --num_rollouts times, as mean +/- a 95% confidence
+interval (normal approximation, 1.96 * std / sqrt(n)) -- the same format as Singh
+et al. Table 6 (the paper uses 256 seeds x 32 rollouts; the default here is
+smaller so it runs in reasonable time). MSE is deterministic, so its rollouts
+within a seed are identical and --num_rollouts only adds variance for IBC.
 '''
 
 import argparse
@@ -35,8 +36,11 @@ from train import (
 
 @torch.no_grad()
 def score_rollout(env, model, method, stochastic_optimizer, sequence_length,
-                  seed, max_steps, device):
-    """Closed-loop rollout; returns the episode's max score (max reward)."""
+                  seed, max_steps, device, prediction_horizon=1, action_horizon=1):
+    """Closed-loop rollout with receding-horizon action chunking; returns the
+    episode's max score (max reward). Each prediction is a chunk of
+    prediction_horizon actions, of which the first action_horizon are executed
+    before re-planning (Diffusion Policy Tp / Ta)."""
     env.seed(seed)
     obs = env.reset()
     history = collections.deque(
@@ -44,16 +48,18 @@ def score_rollout(env, model, method, stochastic_optimizer, sequence_length,
         maxlen=sequence_length,
     )
     best_score = 0.0
-    for _ in range(max_steps):
+    step = 0
+    while step < max_steps:
         x = torch.from_numpy(np.concatenate(history))[None].to(device)
-        if method == "mse":
-            action = model(x)
-        else:
-            action = stochastic_optimizer.infer(x, model)
-        action = denormalize(action[0].cpu().numpy().astype(np.float64))
-        obs, reward, done, _ = env.step(action)
-        history.append(normalize(obs[:20]).astype(np.float32))
-        best_score = max(best_score, float(reward))
+        pred = model(x) if method == "mse" else stochastic_optimizer.infer(x, model)
+        chunk = pred[0].cpu().numpy().astype(np.float64).reshape(prediction_horizon, -1)
+        for i in range(action_horizon):
+            obs, reward, done, _ = env.step(denormalize(chunk[i]))
+            history.append(normalize(obs[:20]).astype(np.float32))
+            best_score = max(best_score, float(reward))
+            step += 1
+            if done or step >= max_steps:
+                break
         if done:
             break
     return best_score
@@ -82,6 +88,10 @@ if __name__ == "__main__":
     parser.add_argument("--noise_scale", type=float, default=None,
                         help="Langevin noise scale override (R-NCE default 1.0).")
     parser.add_argument("--sequence_length", type=int, default=2)
+    parser.add_argument("--prediction_horizon", type=int, default=1,
+                        help="Action-chunk length the checkpoint was trained with (Tp).")
+    parser.add_argument("--action_horizon", type=int, default=1,
+                        help="Actions executed per predicted chunk before re-planning (Ta).")
     parser.add_argument("--num_seeds", type=int, default=20,
                         help="Random initial conditions (paper uses 256).")
     parser.add_argument("--num_rollouts", type=int, default=32,
@@ -98,11 +108,13 @@ if __name__ == "__main__":
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
     _, target_bounds = load_dataset(
-        os.path.join(DATASETS_DIR, args.train_dataset), args.sequence_length
+        os.path.join(DATASETS_DIR, args.train_dataset),
+        args.sequence_length, args.prediction_horizon,
     )
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model = load_model(
-        "push_t", args.method, sequence_length=args.sequence_length, arch=args.arch
+        "push_t", args.method, sequence_length=args.sequence_length, arch=args.arch,
+        prediction_horizon=args.prediction_horizon,
     ).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()
@@ -111,7 +123,10 @@ if __name__ == "__main__":
     proposal = None
     optimizer_name = args.stochastic_optimizer
     if args.method == "rnce":
-        proposal = load_proposal("push_t", sequence_length=args.sequence_length).to(device)
+        proposal = load_proposal(
+            "push_t", sequence_length=args.sequence_length,
+            prediction_horizon=args.prediction_horizon,
+        ).to(device)
         proposal.load_state_dict(checkpoint["proposal"])
         optimizer_name = "langevin"
     stochastic_optimizer = load_stochastic_optimizer(
@@ -124,15 +139,38 @@ if __name__ == "__main__":
     env = PushTKeypointsEnv(render_action=False, **kp_kwargs)
 
     scores = []
+    seed_means = []
     for seed in range(args.seed_start, args.seed_start + args.num_seeds):
         seed_scores = [
             score_rollout(env, model, args.method, stochastic_optimizer,
-                          args.sequence_length, seed, args.max_steps, device)
+                          args.sequence_length, seed, args.max_steps, device,
+                          args.prediction_horizon, args.action_horizon)
             for _ in range(args.num_rollouts)
         ]
         scores.extend(seed_scores)
-        print(f"seed {seed}: mean score {np.mean(seed_scores):.3f}")
+        seed_means.append(np.mean(seed_scores))
+        print(f"seed {seed}: mean score {seed_means[-1]:.3f}")
 
     scores = np.array(scores)
-    print(f"{args.method}: mean score {scores.mean():.3f} +/- {scores.std():.3f} "
-          f"(n={len(scores)} = {args.num_seeds} seeds x {args.num_rollouts} rollouts)")
+    seed_means = np.array(seed_means)
+    mean = scores.mean()
+    # 95% CI of the mean (normal approximation). MSE is deterministic, so the
+    # num_rollouts rollouts per seed are identical and the independent units are
+    # the seeds -- use n = num_seeds over the per-seed scores (n = seeds*rollouts
+    # would overstate precision). The stochastic methods (IBC/R-NCE) do vary per
+    # rollout, so they keep the full n = seeds*rollouts.
+    if args.method == "mse":
+        n = len(seed_means)
+        std = seed_means.std(ddof=1) if n > 1 else 0.0
+        basis = f"{args.num_seeds} seeds"
+    else:
+        n = len(scores)
+        std = scores.std(ddof=1) if n > 1 else 0.0
+        basis = f"{args.num_seeds} seeds x {args.num_rollouts} rollouts"
+    ci = 1.96 * std / np.sqrt(n) if n > 1 else 0.0
+    print(f"{args.method}: mean score {mean:.3f} +/- {ci:.3f} (95% CI, n={n} = {basis})")
+
+    results_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "push_t_scores.txt")
+    with open(results_path, "a") as f:
+        f.write(f"{args.method}\tTp={args.prediction_horizon}\tTa={args.action_horizon}\t"
+                f"score {mean:.3f} +/- {ci:.3f}\t(95% CI, n={n} = {basis})\n")

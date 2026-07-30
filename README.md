@@ -95,11 +95,11 @@ Policy rollouts on the Push-T task. Moving block is color coded by time (lightes
 | Multimodal |<img src="assets/push_t_mse_multimodal.png" width="250"/>|<img src="assets/push_t_ibc_multimodal.png" width="250"/>|<img src="assets/push_t_rnce_multimodal.png" width="250"/>|
 | Rollout    |<img src="assets/push_t_mse.png" width="300"/>|<img src="assets/push_t_ibc.png" width="300"/>|<img src="assets/push_t_rnce.png" width="300"/>|
 
-Score is the mean episode score over 20 random initial conditions x 32 rollouts, where each episode's score is the maximum over time of `s = min(coverage / 0.95, 1)` (coverage = block-goal intersection area / block area).
+Score is the mean episode score over 20 random initial conditions x 32 rollouts, where each episode's score is the maximum over time of `s = min(coverage / 0.95, 1)` (coverage = block-goal intersection area / block area). Reported as mean $\pm$ a 95% confidence interval (normal approximation), following Singh et al.
 
 |       | MSE | IBC | R-NCE |
 |-------|-----|-----|-------|
-| Score | $0.306 \pm 0.340$ | $0.459 \pm 0.351$ | $\mathbf{0.787 \pm 0.246}$ |
+| Score | $0.306 \pm 0.026$ | $0.459 \pm 0.027$ | $\mathbf{0.787 \pm 0.019}$ |
 
 
 

@@ -106,8 +106,12 @@ def multimodal_initial_state(
 
 @torch.no_grad()
 def rollout(env, model, method, stochastic_optimizer, sequence_length, seed,
-            max_steps, device, reset_to_state=None):
-    """Closed-loop rollout; returns agent positions, block poses, and score.
+            max_steps, device, reset_to_state=None, prediction_horizon=1,
+            action_horizon=1):
+    """Closed-loop rollout with receding-horizon action chunking; returns agent
+    positions, block poses, and score. Each prediction is a chunk of
+    prediction_horizon actions, the first action_horizon of which are executed
+    before re-planning (Diffusion Policy Tp / Ta).
 
     The initial condition comes from `seed` unless an explicit 5-D
     `reset_to_state` ([agent_x, agent_y, block_x, block_y, block_angle]) is
@@ -129,20 +133,23 @@ def rollout(env, model, method, stochastic_optimizer, sequence_length, seed,
     # Episode score: max over time of s = min(coverage / 0.95, 1), which the
     # env returns as its per-step reward (matches eval_push_t.py).
     score = 0.0
-    for step in range(max_steps):
+    step = 0
+    while step < max_steps:
         x = torch.from_numpy(np.concatenate(history))[None].to(device)
-        if method == "mse":
-            action = model(x)
-        else:
-            action = stochastic_optimizer.infer(x, model)
-        action = denormalize(action[0].cpu().numpy().astype(np.float64))
-        obs, reward, done, info = env.step(action)
-        history.append(normalize(obs[:20]).astype(np.float32))
-        agent_positions.append(info["pos_agent"])
-        block_poses.append(info["block_pose"])
-        score = max(score, float(reward))
+        pred = model(x) if method == "mse" else stochastic_optimizer.infer(x, model)
+        chunk = pred[0].cpu().numpy().astype(np.float64).reshape(prediction_horizon, -1)
+        done = False
+        for i in range(action_horizon):
+            obs, reward, done, info = env.step(denormalize(chunk[i]))
+            history.append(normalize(obs[:20]).astype(np.float32))
+            agent_positions.append(info["pos_agent"])
+            block_poses.append(info["block_pose"])
+            score = max(score, float(reward))
+            step += 1
+            if done or step >= max_steps:
+                break
         if done:
-            success_step = step + 1
+            success_step = step
             break
 
     return np.array(agent_positions), np.array(block_poses), score, success_step
@@ -171,6 +178,10 @@ if __name__ == "__main__":
     parser.add_argument("--noise_scale", type=float, default=None,
                         help="Langevin noise scale override (R-NCE default 1.0).")
     parser.add_argument("--sequence_length", type=int, default=2)
+    parser.add_argument("--prediction_horizon", type=int, default=1,
+                        help="Action-chunk length the checkpoint was trained with (Tp).")
+    parser.add_argument("--action_horizon", type=int, default=1,
+                        help="Actions executed per predicted chunk before re-planning (Ta).")
     parser.add_argument("--seeds", type=int, nargs="+",
                         default=[100000, 100001, 100002, 100003],
                         help="Initial conditions (Diffusion Policy's test seeds).")
@@ -191,11 +202,13 @@ if __name__ == "__main__":
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
     _, target_bounds = load_dataset(
-        os.path.join(DATASETS_DIR, args.train_dataset), args.sequence_length
+        os.path.join(DATASETS_DIR, args.train_dataset),
+        args.sequence_length, args.prediction_horizon,
     )
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model = load_model(
-        "push_t", args.method, sequence_length=args.sequence_length, arch=args.arch
+        "push_t", args.method, sequence_length=args.sequence_length, arch=args.arch,
+        prediction_horizon=args.prediction_horizon,
     ).to(device)
     model.load_state_dict(checkpoint["model"])
 
@@ -203,7 +216,10 @@ if __name__ == "__main__":
     proposal = None
     optimizer_name = args.stochastic_optimizer
     if args.method == "rnce":
-        proposal = load_proposal("push_t", sequence_length=args.sequence_length).to(device)
+        proposal = load_proposal(
+            "push_t", sequence_length=args.sequence_length,
+            prediction_horizon=args.prediction_horizon,
+        ).to(device)
         proposal.load_state_dict(checkpoint["proposal"])
         optimizer_name = "langevin"
     stochastic_optimizer = load_stochastic_optimizer(
@@ -230,6 +246,8 @@ if __name__ == "__main__":
                 env, model, args.method, stochastic_optimizer,
                 args.sequence_length, None, args.multimodal_steps, device,
                 reset_to_state=initial_state,
+                prediction_horizon=args.prediction_horizon,
+                action_horizon=args.action_horizon,
             )
             steps = len(block_poses)
             for t in range(steps):
@@ -254,6 +272,8 @@ if __name__ == "__main__":
             agent_positions, block_poses, score, success_step = rollout(
                 env, model, args.method, stochastic_optimizer,
                 args.sequence_length, seed, args.max_steps, device,
+                prediction_horizon=args.prediction_horizon,
+                action_horizon=args.action_horizon,
             )
 
             # Paint the block at every timestep in chronological order, so
