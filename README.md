@@ -95,12 +95,14 @@ Policy rollouts on the Push-T task. Moving block is color coded by time (lightes
 | Multimodal |<img src="assets/push_t_mse_multimodal.png" width="250"/>|<img src="assets/push_t_ibc_multimodal.png" width="250"/>|<img src="assets/push_t_rnce_multimodal.png" width="250"/>|
 | Rollout    |<img src="assets/push_t_mse.png" width="300"/>|<img src="assets/push_t_ibc.png" width="300"/>|<img src="assets/push_t_rnce.png" width="300"/>|
 
-Score is the mean episode score over 20 random initial conditions x 32 rollouts, where each episode's score is the maximum over time of `s = min(coverage / 0.95, 1)` (coverage = block-goal intersection area / block area). Reported as mean $\pm$ a 95% confidence interval (normal approximation), following Singh et al.
+Score is the mean episode score over 256 random initial conditions, where each episode's score is the maximum over time of `s = min(coverage / 0.95, 1)` (coverage = block-goal intersection area / block area). Reported as mean $\pm$ a 95% confidence interval (normal approximation), following Singh et al.
 
-|       | MSE | IBC | R-NCE |
-|-------|-----|-----|-------|
-| Score | $0.306 \pm 0.026$ | $0.459 \pm 0.027$ | $\mathbf{0.787 \pm 0.019}$ |
+Both action horizons are shown: $T_p$ is the number of actions predicted per step and $T_a$ the number executed before replanning. $T_p = T_a = 1$ is single-step control.
 
+|                         | MSE | IBC | R-NCE |
+|-------------------------|-----|-----|-------|
+| $T_p=1,\ T_a=1$         | $0.246 \pm 0.039$ | $0.561 \pm 0.044$ | $\mathbf{0.628 \pm 0.041}$ |
+| $T_p=16,\ T_a=8$        | $\mathbf{0.632 \pm 0.054}$ | $0.142 \pm 0.021$ | $0.530 \pm 0.042$ |
 
 
 
