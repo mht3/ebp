@@ -103,9 +103,9 @@ $T_p$ is the number of actions predicted per step and $T_a$ the number executed 
 
 |            | |
 |------------|-----------------|
-| MSE  |<img src="assets/push_t_mse.png" width="300"/>|
-| IBC  |<img src="assets/push_t_ibc.png" width="300"/>
-| R-NCE (Best)  |<img src="assets/push_t_rnce.png" width="300"/>|
+| MSE  |<img src="assets/push_t_mse.png" width="750"/>|
+| IBC  |<img src="assets/push_t_ibc.png" width="750"/>
+| R-NCE  |<img src="assets/push_t_rnce.png" width="750"/>|
 
 
 |            | MSE | IBC | R-NCE |
