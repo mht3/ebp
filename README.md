@@ -107,6 +107,8 @@ $T_p$ is the number of actions predicted per step and $T_a$ the number executed 
 | $T_p=16,\ T_a=8$   | $0.632 \pm 0.054$ | $0.149 \pm 0.022$ | $0.530 \pm 0.042$ |
 
 
+IBC performs poorly when using action chunking because uniform negatives don't fall near the action data manifold. 
+
 
 ## Training
 
