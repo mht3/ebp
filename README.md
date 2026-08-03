@@ -90,11 +90,6 @@ IBC inference as energy descent: from uniform action samples at a fixed state $s
 
 Policy rollouts on the Push-T task. Moving block is color coded by time (lightest at the start, darkest at the end), the pusher path uses a yellow-to-purple heatmap, and the goal configuration is filled green.
 
-|            | MSE | IBC | R-NCE |
-|------------|-----------------|-----------------|-----------------|
-| Multimodal |<img src="assets/push_t_mse_multimodal.png" width="250"/>|<img src="assets/push_t_ibc_multimodal.png" width="250"/>|<img src="assets/push_t_rnce_multimodal.png" width="250"/>|
-| Rollout    |<img src="assets/push_t_mse.png" width="300"/>|<img src="assets/push_t_ibc.png" width="300"/>|<img src="assets/push_t_rnce.png" width="300"/>|
-
 Score is the mean episode score over 256 random initial conditions, where each episode's score is the maximum over time of `s = min(coverage / 0.95, 1)` (coverage = block-goal intersection area / block area). Reported as mean $\pm$ a 95% confidence interval (normal approximation), following Singh et al.
 
 $T_p$ is the number of actions predicted per step and $T_a$ the number executed before replanning.
@@ -106,8 +101,17 @@ $T_p$ is the number of actions predicted per step and $T_a$ the number executed 
 | $T_p=4,\ T_a=4$    | $0.667 \pm 0.052$ | $0.169 \pm 0.024$ | $0.613 \pm 0.049$ |
 | $T_p=16,\ T_a=8$   | $0.632 \pm 0.054$ | $0.149 \pm 0.022$ | $0.530 \pm 0.042$ |
 
+|            | |
+|------------|-----------------|
+| MSE  |<img src="assets/push_t_mse.png" width="300"/>|
+| IBC  |<img src="assets/push_t_ibc.png" width="300"/>
+| R-NCE (Best)  |<img src="assets/push_t_rnce.png" width="300"/>|
 
-IBC performs poorly when using action chunking because uniform negatives don't fall near the action data manifold. 
+
+|            | MSE | IBC | R-NCE |
+|------------|-----------------|-----------------|-----------------|
+| Multimodal |<img src="assets/push_t_mse_multimodal.png" width="250"/>|<img src="assets/push_t_ibc_multimodal.png" width="250"/>|<img src="assets/push_t_rnce_multimodal.png" width="250"/>|
+
 
 
 ## Training
