@@ -175,7 +175,7 @@ def load_model(
 
 
 def load_proposal(task: str, sequence_length: int = 2, coord_conv: bool = False,
-                  prediction_horizon: int = 1, cov_rank: int = 0):
+                  prediction_horizon: int = 1):
     """Build the diagonal-Gaussian proposal q_xi(y | x) for R-NCE, sized per task.
 
     Vector-observation tasks (push_t, make_moons) get an MLP-mean GaussianProposal.
@@ -203,8 +203,7 @@ def load_proposal(task: str, sequence_length: int = 2, coord_conv: bool = False,
         raise ValueError("Unsupported task: `{}`".format(task))
 
     config = GaussianProposalConfig(obs_dim=obs_dim, act_dim=action_dim,
-                                    hidden_dim=256, hidden_depth=2, log_std_init=0.0,
-                                    cov_rank=cov_rank)
+                                    hidden_dim=256, hidden_depth=2, log_std_init=0.0)
     return GaussianProposal(config)
 
 
@@ -334,16 +333,6 @@ if __name__ == "__main__":
         "R-NCE value in load_stochastic_optimizer when unset).",
     )
     parser.add_argument(
-        "--cov_rank",
-        type=int,
-        default=0,
-        help="R-NCE proposal covariance rank. 0 (default) = diagonal. k>0 uses "
-        "diag + U U^T with U of rank k, letting the proposal model correlations "
-        "between action dimensions -- worth ~60 nats/sample on Push-T action "
-        "chunks at k=4. Checkpoints get an _r<k> suffix so they coexist with "
-        "the diagonal ones. See GaussianProposalConfig.cov_rank.",
-    )
-    parser.add_argument(
         "--l2_weight",
         type=float,
         default=0.0,
@@ -425,7 +414,6 @@ if __name__ == "__main__":
         proposal = load_proposal(
             args.task, sequence_length=args.sequence_length,
             coord_conv=args.coord_conv, prediction_horizon=args.prediction_horizon,
-            cov_rank=args.cov_rank,
         )
         # Inference is always Langevin for R-NCE (Alg. 2), regardless of the CLI flag.
         stochastic_optimizer = load_stochastic_optimizer(
@@ -457,10 +445,6 @@ if __name__ == "__main__":
     # Encode the action-chunk length in the name (Tp > 1) so chunked models don't
     # clobber the single-step checkpoint and the two can coexist.
     suffix = f"_p{args.prediction_horizon}" if args.prediction_horizon > 1 else ""
-    # A correlated-covariance proposal is a different architecture, so its
-    # checkpoint must not overwrite the diagonal one.
-    if args.method == "rnce" and args.cov_rank > 0:
-        suffix += f"_r{args.cov_rank}"
     checkpoint = f"{args.method}_{os.path.splitext(args.train_dataset)[0]}{suffix}.pt"
     trainer.save(os.path.join(MODELS_DIR, checkpoint))
     print(f"Saved model to models/{checkpoint}")

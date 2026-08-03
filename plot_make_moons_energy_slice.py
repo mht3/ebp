@@ -1,25 +1,3 @@
-'''
-make_moons energy diagnostics at a single observation (default s = 0.4, inside
-the held-out bimodal strip), where the state maps to two valid actions (the two
-moons). Two 2-panel animations (left: the (state, action) plane with training
-data; right: the energy slice E(s, x2)), where action samples descend the energy
-in tandem and converge onto both moons -- the two modes an MSE regressor cannot
-represent:
-
-1. images/make_moons_energy_slice.gif -- IBC, initialized UNIFORMLY. IBC's energy
-   is trained with uniform negatives, so it is valid across the whole action
-   range and a uniform init flows to the minima.
-
-2. images/make_moons_rnce_energy_slice.gif -- R-NCE, warm-started from the learned
-   proposal q(a | s) (Alg. 2); the proposal mean and 95% CI are drawn on the
-   energy panel to show where the chain initializes.
-
-Energies are min-max normalized so the wells sit in [0, 1]. Lower = preferred.
-
-python plot_make_moons_energy_slice.py --train_dataset make_moons_n_1000_seed_0.npz \
-    --obs 0.4
-'''
-
 import argparse
 import os
 

@@ -1,20 +1,5 @@
 '''
-Plot a trained make_moons policy: predicted actions over the held-out strip and
-(for energy-based methods) the learned energy landscape.
-
-python plot_make_moons.py --method ibc \
-    --checkpoint models/ibc_make_moons_n_1000_seed_0.pt \
-    --train_dataset make_moons_n_1000_seed_0.npz \
-    --test_dataset make_moons_test.npz
-
-The predictions figure scatters the training data in grey and, for each test x1
-in the held-out strip, the model's predicted x2 sampled --num_samples times. An
-MSE policy collapses to one branch of the moons; an energy-based policy (IBC,
-R-NCE) spreads across both. The energy figure (energy-based methods only) shows
-the learned energy over the (x1, x2) plane with the training data overlaid.
-
-Figures are saved to images/{method}_make_moons_predictions.png and
-images/{method}_make_moons_energy.png.
+Plot a trained make_moons policy.
 '''
 
 import argparse
@@ -45,8 +30,7 @@ def sample_actions(model, states, method, stochastic_optimizer, device,
                    num_samples):
     """Return (num_samples, N) predicted x2 for each state.
 
-    MSE is deterministic (its rows are identical); the stochastic optimizer
-    resamples candidates each call, so IBC/R-NCE spread over the modes.
+    MSE is deterministic, so we don't need to do multiple trials per simulation.
     """
     model.eval()
     states = torch.from_numpy(states).to(device)

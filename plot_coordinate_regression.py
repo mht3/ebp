@@ -1,16 +1,5 @@
 '''
-Plot coordinate regression predictions for a trained model, like
-https://github.com/kevinzakka/ibc/blob/main/plot.py.
-
-python plot_coordinate_regression.py --method mse \
-    --checkpoint models/mse_coordinate_regression_n_30_seed_0.pt \
-    --train_dataset coordinate_regression_n_30_seed_0.npz \
-    --test_dataset coordinate_regression_n_30_seed_1_test.npz
-
-Plots the train coordinates (black x) with their convex hull, and the ground
-truth test coordinates colored by the model's pixel error at that location
-(blue circles when the prediction is < 1 pixel off). Saves the figure to
-images/<checkpoint stem>.png.
+Adapted from Kevin Zakka: https://github.com/kevinzakka/ibc/blob/main/plot.py.
 '''
 
 import argparse
@@ -95,7 +84,6 @@ if __name__ == "__main__":
     model = load_model(args.task, args.method, coord_conv=args.coord_conv).to(device)
     model.load_state_dict(checkpoint["model"])
 
-    # R-NCE inference warm-starts Langevin from the checkpointed proposal (Alg. 2).
     proposal = None
     optimizer_name = args.stochastic_optimizer
     if args.method == "rnce":

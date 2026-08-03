@@ -97,12 +97,14 @@ Policy rollouts on the Push-T task. Moving block is color coded by time (lightes
 
 Score is the mean episode score over 256 random initial conditions, where each episode's score is the maximum over time of `s = min(coverage / 0.95, 1)` (coverage = block-goal intersection area / block area). Reported as mean $\pm$ a 95% confidence interval (normal approximation), following Singh et al.
 
-Both action horizons are shown: $T_p$ is the number of actions predicted per step and $T_a$ the number executed before replanning. $T_p = T_a = 1$ is single-step control.
+$T_p$ is the number of actions predicted per step and $T_a$ the number executed before replanning.
 
-|                         | MSE | IBC | R-NCE |
-|-------------------------|-----|-----|-------|
-| $T_p=1,\ T_a=1$         | $0.246 \pm 0.039$ | $0.561 \pm 0.044$ | $\mathbf{0.628 \pm 0.041}$ |
-| $T_p=16,\ T_a=8$        | $\mathbf{0.632 \pm 0.054}$ | $0.142 \pm 0.021$ | $0.530 \pm 0.042$ |
+|                    | MSE | IBC | R-NCE |
+|--------------------|-----|-----|-------|
+| $T_p=1,\ T_a=1$    | $0.246 \pm 0.039$ | $0.570 \pm 0.044$ | $0.643 \pm 0.044$ |
+| $T_p=2,\ T_a=2$    | $0.478 \pm 0.056$ | $0.237 \pm 0.025$ | $\mathbf{0.772 \pm 0.041}$ |
+| $T_p=4,\ T_a=4$    | $0.667 \pm 0.052$ | $0.169 \pm 0.024$ | $0.613 \pm 0.049$ |
+| $T_p=16,\ T_a=8$   | $0.632 \pm 0.054$ | $0.149 \pm 0.022$ | $0.530 \pm 0.042$ |
 
 
 

@@ -1,35 +1,6 @@
 '''
 Roll out a trained Push-T policy in a few initial conditions and visualize the
 trajectories as one row of panels, saved to images/push_t_<method>.png.
-
-python plot_push_t.py --method ibc --checkpoint models/ibc_push_t_train.pt \
-    --stochastic_optimizer langevin --inference_samples 1024
-
-Styled after the rollout visualizations in Singh et al. (arXiv:2309.05803),
-Table 5: the desired goal configuration is filled green, and the block (with
-the agent circle) is drawn at every timestep, color coded by time from the
-lightest shade at the beginning of the trajectory to the darkest at the end.
-
-With --multimodal, instead mirrors Diffusion Policy's Figure 3 (multimodal
-behavior): a single symmetric initial condition where the block already
-overlaps the goal along the block's own symmetry axis (a short push, no
-rotation) and the agent starts centered above the tip of both Ts. The agent
-must go around the block on either the left or the right, a perfectly
-symmetric two-mode choice (--seeds is ignored). The policy is rolled out
---num_rollouts times for --multimodal_steps steps, overlaying the block poses
-with lightest-to-darkest time shading and the agent trajectories as
-yellow-orange-red-purple heatmap lines; the initial agent position is marked
-with a blue dot. Stochastic (IBC) inference spreads over behavior modes while
-a deterministic MSE policy traces a single path. Saved to
-images/push_t_<method>_multimodal.png.
-
-Rollouts are closed loop at 10 Hz for up to --max_steps steps (Diffusion
-Policy's eval budget), stopping early on success (95% goal coverage). The
-observation history is left-padded by repeating the first observation, matching
-Diffusion Policy's eval-time stacking; training windows instead drop the first
-sequence_length - 1 steps of each episode, so only a rollout's first step is
-slightly off-distribution. IBC inference runs the stochastic optimizer once per
-step; on CPU the langevin optimizer is roughly 10x slower than on GPU.
 '''
 
 import argparse
@@ -53,19 +24,16 @@ from train import (
 
 IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
 
-# The T block's two rectangles in its local frame, from PushTEnv.add_tee
-# (scale=30, length=4). World frame: position + R(angle) @ v, y-axis down.
+
 TEE_BAR = np.array([(-60.0, 0.0), (60.0, 0.0), (60.0, 30.0), (-60.0, 30.0)])
 TEE_STEM = np.array([(-15.0, 30.0), (15.0, 30.0), (15.0, 120.0), (-15.0, 120.0)])
 AGENT_RADIUS = 15.0
 
 GOAL_COLOR = "#7fc97f"
-# Block-pose shades: near-lightest blue-grey at the beginning, dark blue at the
-# end, so the block's transition over the trajectory is visible.
+
 TIME_CMAP = LinearSegmentedColormap.from_list(
     "time", ["#eef3f7", "#aec6dd", "#3f6ea5", "#0c1c4d"]
 )
-# Pusher-path heatmap (Diffusion Policy Fig. 3): yellow -> orange -> red -> purple.
 PUSHER_CMAP = LinearSegmentedColormap.from_list(
     "pusher", ["#f9e04c", "#f6a020", "#e0201b", "#4a0d67"]
 )
@@ -86,14 +54,7 @@ def multimodal_initial_state(
     push_distance: float = 40.0,
     agent_offset: float = 30.0,
 ) -> np.ndarray:
-    """Symmetric initial condition for the multimodality figure.
 
-    The block sits push_distance below the goal along its own symmetry axis at
-    the goal's angle, so it already overlaps the goal and reaching it is a
-    short straight push with no rotation. The agent starts centered above the
-    tip of both Ts (past the top of the bar) and must go around the block on
-    either side to push it up to the goal.
-    """
     x, y, theta = goal_pose
     rotation = np.array(
         [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
@@ -316,7 +277,10 @@ if __name__ == "__main__":
 
     fig.tight_layout()
     suffix = "_multimodal" if args.multimodal else ""
-    plot_path = os.path.join(IMAGES_DIR, f"push_t_{args.method}{suffix}.png")
+    # Include the action horizon so figures for different Tp/Ta don't overwrite
+    # each other (Tp=1 keeps the original unsuffixed filenames).
+    horizon = "" if args.prediction_horizon == 1 else f"_p{args.prediction_horizon}a{args.action_horizon}"
+    plot_path = os.path.join(IMAGES_DIR, f"push_t_{args.method}{horizon}{suffix}.png")
     fig.savefig(plot_path, format="png", dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved plot to images/{os.path.basename(plot_path)}")
